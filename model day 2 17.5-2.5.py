@@ -22,7 +22,7 @@ data = data.rename(columns={data.columns[0]: 'DateTime'}).set_index('DateTime')
 data = data.apply(pd.to_numeric, errors='coerce')
 
 window_size = 16
-T_rolling = data.iloc[:, 7:].rolling(window=window_size).mean() #7 to remove all flow and pressure meters
+T_rolling = data.iloc[:, 7:-1].rolling(window=window_size).mean() #7 to remove all flow and pressure meters
 
 # plot vs time index
 for col in T_rolling.columns:
