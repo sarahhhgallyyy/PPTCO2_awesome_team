@@ -12,9 +12,7 @@ import pandas as pd
 from scipy.integrate import solve_ivp
 from scipy.optimize import curve_fit
 
-path = r"C:\Users\20210996\OneDrive - TU Eindhoven\Desktop\TUe\Year 4 2025-26\PPT Lab\Day 2 2.5CO2 17.5N2 attempt 2.csv"
-
-# read correctly: EU numbers + parse first col as datetime
+path = r""
 data = pd.read_csv(path, sep=',', decimal=',', parse_dates=[0])
 data = data.rename(columns={data.columns[0]: 'DateTime'}).set_index('DateTime')
 
