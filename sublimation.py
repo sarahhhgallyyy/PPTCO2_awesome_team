@@ -66,20 +66,34 @@ def heatbalance(T, heat_loss, T_in, tank_volume, thermal_mass, sublimation_heat)
     for i in range(1, number_of_tanks):
         dqdt[i] = tank_volume*thermal_mass*(T[i] - T[i-1]) - heat_loss[i] - sublimation_heat[i]
     return dqdt
+
 T_in = -196
-#heat = odeint(heatbalance, heat_loss, T_rolling.index, args=(np.zeros(number_of_tanks), T_in, tank_volume, thermal_mass_flow_combined, sublimation_heat_CO2))
-# assumption: CO2 sublimates immediately once cold enough
-t_span = np.linspace(0, 1000, 1001) #seconds
-print(range(t_span.size))
+
+# setting a time span
+total_time = 1500
+time_increments = 1501
+t_span = np.linspace(0, total_time, time_increments) #seconds
+dt = total_time/(time_increments-1)
+
+# modeling the heat of sublimation
 def sublimation(CO2_mass_flow, thermal_mass):
-    # CO2 enters first tank
+    """Returns the temperature of each tank at each point in time. 
+    Driving force: heat of sublimation and heating by environment."""
+    # set a starting temperature (should be steady state temperature in the future)
     T = [[-170]*16 for i in range(t_span.size)]
+    # set first tank to high starting temperature (because that implies that CO2 is already sublimated there)
     for i in range(t_span.size):
         T[i][0] = 0
+    # loop over all timestamps over all tanks
     for j in range(t_span.size):
         for i in range(1, number_of_tanks):
+            """If the previous tank is already sublimated and the current tank is not,
+            then add the heat of sublimation to the current tank.
+            Always add heating by the environment (as experimentally determined at steady state).
+            NB: this heat loss is now treated as a constant for each tank, while it should be a
+            function of Delta_T."""
             if T[j][i-1] >= sublimation_point_CO2 and T[j-1][i] < sublimation_point_CO2:
-                T[j][i] = T[j-1][i] + (sublimation_heat_CO2/thermal_mass) + heat_loss[i] # need to add accumulated CO2 as well
+                T[j][i] = T[j-1][i] + (sublimation_heat_CO2/thermal_mass)*dt + heat_loss[i] # need to add accumulated CO2 as well
             else:
                 T[j][i] = T[j-1][i] + heat_loss[i]
     return T

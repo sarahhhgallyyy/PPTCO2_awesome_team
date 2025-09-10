@@ -5,7 +5,7 @@ import pandas as pd
 from scipy.integrate import solve_ivp
 from scipy.optimize import curve_fit
 
-path = r"C:\Users\20210996\OneDrive - TU Eindhoven\Desktop\TUe\Year 4 2025-26\PPT Lab\N2 15 CO2 5 experiment 1.csv"
+path = r"\\stfiler\exchange\TUE_Exchange\CO2 cryogenic\Sara, Stan, Tony\Day 3\N2 15 CO2 5 experiment 1.csv"
 
 # read correctly: EU numbers + parse first col as datetime
 data = pd.read_csv(path, sep=',', decimal=',', parse_dates=[0])

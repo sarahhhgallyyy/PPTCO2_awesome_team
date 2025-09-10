@@ -12,7 +12,7 @@ import pandas as pd
 from scipy.integrate import solve_ivp
 from scipy.optimize import curve_fit
 
-path = r""
+path = r"\\stfiler\exchange\TUE_Exchange\CO2 cryogenic\Sara, Stan, Tony\Day 2\Day 2 2.5CO2 17.5N2 attempt 2.csv"
 data = pd.read_csv(path, sep=',', decimal=',', parse_dates=[0])
 data = data.rename(columns={data.columns[0]: 'DateTime'}).set_index('DateTime')
 
