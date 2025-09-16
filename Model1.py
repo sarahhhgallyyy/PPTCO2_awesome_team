@@ -1,8 +1,9 @@
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+import math
 
-path = r"\\stfiler\exchange\TUE_Exchange\CO2 cryogenic\Sara, Stan, Tony\Day 2\trial day 2.csv"
+path = r"C:\Users\20223544\OneDrive - TU Eindhoven\Documents\saus\PPT\Cooling steady state 2.csv"
 
 # read correctly: EU numbers + parse first col as datetime
 data = pd.read_csv(path, sep=',', decimal=',', parse_dates=[0])
@@ -29,19 +30,24 @@ number_of_tanks = 16
 
 def heatbalance(T, T_in, tank_volume, thermal_mass):
     adiabatic_loss_per_tank = np.zeros(number_of_tanks)
+    heat_transfer_alpha = np.zeros(number_of_tanks)
     #first tank
-    first_tank_volume = 50 * 10**-3 # L; measured as the volume of the zone before the beads
+    T_outside = 20 #°C
+    first_tank_volume = 80 * 10**-3 # L; measured as the volume of the zone before the beads
+    first_tank_surface = 0.05 #m^2
+    tank_surface = 0.03**2*math.pi
     adiabatic_loss_per_tank[0] = first_tank_volume*thermal_mass*(T[0] - T_in)
-    
+    heat_transfer_alpha[0] = adiabatic_loss_per_tank[0]/((T_outside - T[0])*first_tank_surface)
     #remaining tanks
     for i in range(1, number_of_tanks):
-        adiabatic_loss_per_tank[i] = tank_volume*thermal_mass*(T[i] - T[i-1])
-    return adiabatic_loss_per_tank
+        adiabatic_loss_per_tank[i] = tank_volume*thermal_mass*(T[i] - T[i-1]) #W
+        heat_transfer_alpha[i] = adiabatic_loss_per_tank[i]/((T_outside-T[i])*tank_surface) #W/m^2K
+    return adiabatic_loss_per_tank, heat_transfer_alpha
 
 # getting the right thermal mass
 heat_capacity_N2 = 1040 # J/kgK
 density_N2 = 1.16 * 10**-3 #kg/Ln
-volume_flow_N2_mins = data.values[10][1] #Ln/min
+volume_flow_N2_mins = data.values[10][0] #Ln/min
 volume_flow_N2_sec = volume_flow_N2_mins / 60 #Ln/sec
 thermal_mass_flow_N2 = heat_capacity_N2 * density_N2 * volume_flow_N2_sec #W/K
 
@@ -57,13 +63,15 @@ thermal_mass_flow_combined = thermal_mass_flow_CO2 + thermal_mass_flow_N2 #W/K
 tank_volume = 10 * 10**-3 #L
 
 #selecting the right temperatures
-target_time = pd.Timestamp("2025-09-08 14:23:10.765000")
+target_time = pd.Timestamp("2025-09-15 14:48:25")
 temperature_steady_state = data.loc[target_time]["T210_PV" : "T226_PV"].values
 Tin = data.loc[target_time]["T201_PV"]
-heat_loss = heatbalance(temperature_steady_state, Tin, tank_volume, thermal_mass_flow_combined)
+heat_loss, alpha = heatbalance(temperature_steady_state, Tin, tank_volume, thermal_mass_flow_combined)
 
 # plotting the heat losses
-tanks = range(number_of_tanks)
-plt.plot(tanks, heat_loss)
+tanks = range(1, number_of_tanks)
+plt.plot(tanks, heat_loss[1:], label="heat loss")
+plt.plot(tanks, alpha[1:], label="alpha*A")
 plt.xlabel("tank number")
-plt.ylabel("heat loss [W]")
+plt.ylabel("heat loss [W] / alpha*A [W/K]")
+plt.legend()
