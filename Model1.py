@@ -38,7 +38,7 @@ def conduction(T, T_in, tank_volume, thermal_mass):
     adiabatic_loss_per_tank[0] = thermal_mass*(T[0] - T_in) #W
     heat_transfer_alpha[0] = adiabatic_loss_per_tank[0]/((T_outside - T[0])*first_tank_surface) #W/m^2K
     #remaining tanks
-    for i in range(1, number_of_tanks):
+    for i in range(1, number_of_tanks-1):
         adiabatic_loss_per_tank[i] = thermal_mass*(T[i] - T[i-1]) #W
         heat_transfer_alpha[i] = adiabatic_loss_per_tank[i]/((T_outside-T[i])*tank_surface) #W/m^2K
     return adiabatic_loss_per_tank, heat_transfer_alpha
@@ -64,8 +64,9 @@ tank_volume = 10 * 10**-6 #m^3
 #selecting the right temperatures
 target_time = pd.Timestamp("2025-09-15 14:48:25")
 temperature_steady_state = T_rolling.loc[target_time]["T210_PV" : "T226_PV"].values
+temperature_steady_state_rolling = np.roll(temperature_steady_state, 3)
 Tin = T_rolling.loc[target_time]["T201_PV"]
-heat_loss, alpha = conduction(temperature_steady_state, Tin, tank_volume, thermal_mass_flow_combined)
+heat_loss, alpha = conduction(temperature_steady_state_rolling, Tin, tank_volume, thermal_mass_flow_combined)
 
 path_conv = r"C:\Users\20223544\OneDrive - TU Eindhoven\Documents\GitHub\PPTCO2_awesome_team\Data\Day 5 foil and 20 N2 0.06 CO2.csv"
 
@@ -124,9 +125,10 @@ def convection(T, T_in, tank_volume, thermal_mass):
 
 target_time_conv = pd.Timestamp("2025-09-17 09:51:51.114000")
 temperature_steady_state_conv = T_rolling_conv.loc[target_time_conv]["T210_PV" : "T226_PV"].values
+temperature_steady_state_conv_rolling  = np.roll(temperature_steady_state_conv, 3)
 Tin_conv = T_rolling_conv.loc[target_time_conv]["T201_PV"]
 
-convection_conv, heat_trans_lambda = convection(temperature_steady_state_conv, Tin_conv, tank_volume, thermal_mass_flow_combined)
+convection_conv, heat_trans_lambda = convection(temperature_steady_state_conv_rolling, Tin_conv, tank_volume, thermal_mass_flow_combined)
 
 path_rad_no_foil= r"C:\Users\20223544\TU Eindhoven\Vullings, Stan - PPT\Data\Day 3\N2 12.5 CO2 7.5 Experiment 2.csv"
 
@@ -153,18 +155,19 @@ boltzman_constant = 5.67*10**-8 #W/m^2K^4
 
 target_time_rad_no_foil = pd.Timestamp("2025-09-10 11:29:21.434000")
 temperature_steady_state_rad_no_foil = T_rolling_rad_no_foil.loc[target_time_rad_no_foil]["T210_PV" : "T226_PV"].values
+temperature_steady_state_rad_no_foil_rolling  = np.roll(temperature_steady_state_rad_no_foil, 3)
 Tin_rad_no_foil = T_rolling_rad_no_foil.loc[target_time_rad_no_foil]["T201_PV"]
 
-radiation_no_foil, epsilon_no_foil = radiation(temperature_steady_state_rad_no_foil, Tin_rad_no_foil, tank_volume, thermal_mass_flow_combined)
+radiation_no_foil, epsilon_no_foil = radiation(temperature_steady_state_rad_no_foil_rolling, Tin_rad_no_foil, tank_volume, thermal_mass_flow_combined)
 
 # plotting the heat losses
-tanks = range(1, number_of_tanks)
-#plt.plot(tanks, heat_loss[1:], label="heat loss")
-#plt.plot(tanks, alpha[1:], label="alpha*A")
-plt.plot(tanks, convection_conv[1:], label="convection")
-plt.plot(tanks, heat_trans_lambda[1:], label="alpha")
-plt.plot(tanks, radiation_no_foil[1:], label="radiation no foil")
-plt.plot(tanks, epsilon_no_foil[1:], label="epsilon no foil")
+tanks = range(4, number_of_tanks)
+plt.plot(tanks, heat_loss[4:], label="conduction")
+plt.plot(tanks, alpha[4:], label="alpha*A")
+plt.plot(tanks, convection_conv[4:], label="convection")
+plt.plot(tanks, heat_trans_lambda[4:], label="alpha")
+plt.plot(tanks, radiation_no_foil[4:], label="radiation no foil")
+plt.plot(tanks, epsilon_no_foil[4:], label="epsilon no foil")
 plt.xlabel("tank number")
 plt.ylabel("heat loss [W] / alpha*A [W/K]")
 plt.legend()
