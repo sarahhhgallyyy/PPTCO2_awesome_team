@@ -38,8 +38,6 @@ plt.show()
 
 # some constants
 
-enthalpy_of_sublimation_CO2 = 591 * 10**3 #J/kg
-sublimation_point_CO2 = -78 #K
 heat_capacity_glass = 0.840 #J/gK
 density_glass = 2.2 #g/mL
 
@@ -137,4 +135,4 @@ for i in range(number_of_tanks-1):
 plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
 plt.tight_layout()
 #plt.text(600, 600, f'alpha = {params_fit[0]:.2f}', fontsize=22)
-
+alpha_fit, T_outside_fit, epsilon_fit = params_fit
