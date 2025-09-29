@@ -12,7 +12,7 @@ from scipy.integrate import odeint
 from Model1 import heat_loss
 import matplotlib.pyplot as plt
 #from Model1 import temperature_steady_state
-path = r"\\stfiler\exchange\TUE_Exchange\CO2 cryogenic\Sara, Stan, Tony\Day 2\Day 2 2.5CO2 17.5N2 attempt 2.csv"
+path = r"C:\Users\20223544\TU Eindhoven\Vullings, Stan - PPT\Data\Day 5\Day 5 foil 6.09 CO2 12.5 N2 finished, foil on.csv"
 
 # read correctly: EU numbers + parse first col as datetime
 data = pd.read_csv(path, sep=',', decimal=',', parse_dates=[0])
