@@ -10,6 +10,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.integrate import odeint
 from Model1 import heat_loss
+import matplotlib.pyplot as plt
 #from Model1 import temperature_steady_state
 path = r"\\stfiler\exchange\TUE_Exchange\CO2 cryogenic\Sara, Stan, Tony\Day 2\Day 2 2.5CO2 17.5N2 attempt 2.csv"
 
@@ -103,3 +104,4 @@ Temp_dist = sublimation(density_CO2 * volume_flow_CO2_sec, thermal_mass_flow_com
 #plotting the CSTR-in-series
 plt.plot(t_span, Temp_dist)
 plt.legend(["tank 1", "tank 2", "tank 3", "tank 4", "tank 5", "etc"], bbox_to_anchor=(1.05, 1), loc='upper left')
+plt.show()
