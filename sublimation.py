@@ -6,7 +6,7 @@ Created on Wed Sep 10 10:26:32 2025
 """
 
 import pandas as pd
-import numpy as np
+import numpy as np 
 import matplotlib.pyplot as plt
 from scipy.integrate import odeint
 from Model1 import heat_loss
