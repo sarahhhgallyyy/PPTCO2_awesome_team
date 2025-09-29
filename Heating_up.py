@@ -123,7 +123,7 @@ print("Fitted parameters alpha, T_outside, epsilon =", params_fit)
 T_sim = model_T_flat(params_fit, t_span, T_steady_state).reshape(len(t_span), number_of_tanks-1)
 
 #plotting the CSTR-in-series
-plt.subplots(4,4,figsize=(10,8))
+plt.subplots(4,4,figsize=(14,8))
 for i in range(number_of_tanks-1):
     plt.subplot(4,4,i+1)
     plt.plot(t_span, T_sim[:,i], label="model", marker=',', color='b')

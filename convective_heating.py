@@ -168,7 +168,7 @@ print("Fitted parameters alpha_conv, T_in=", params_fit)
 T_sim = model_T(params_fit, t_span, T0_pchip).reshape(len(t_span), number_of_tanks-1)[:,measured_indices]
 
 #plotting the CSTR-in-series
-plt.subplots(4,4,figsize=(10,8))
+plt.subplots(4,4,figsize=(14,8))
 for i in range(16):
     plt.subplot(4,4,i+1)
     plt.plot(t_span, T_sim[:,i+1], label="model", marker=',', color='b')
