@@ -63,12 +63,12 @@ thermal_mass_flow_CO2 = heat_capacity_CO2 * density_CO2 * volume_flow_CO2_sec #W
 thermal_mass_flow_combined = thermal_mass_flow_CO2 + thermal_mass_flow_N2 #W/K
 
 # getting the right volume per tank
-tank_void = 10 #mL (void part)
-void_fraction = 0.1 # guessed for now
-tank_volume = tank_void/void_fraction #mL
 tank_surface = 0.0065 #m^2
-trunk = 5
-number_of_tanks = 17 + trunk
+trunk = 3
+N_sim = 12
+number_of_tanks = N_sim + trunk
+tank_void = 160/N_sim #mL (void part)
+void_fraction = 0.1 # guessed for now
 Boltzman_constant = 5.67*10**-8 #W/m^2K^-4
 
 #T_outside = 20 # °C
@@ -76,10 +76,11 @@ Boltzman_constant = 5.67*10**-8 #W/m^2K^-4
 
 
 def heatbalance(T, t_span, params):
-    alpha_conv, T_in = params
+    alpha_conv, T_in, first_tank_volume, void_fraction = params
     dTdt = np.zeros_like(T)
+    tank_volume = tank_void/void_fraction #mL
     #first tank
-    first_tank_volume = 150 * 10**-3 # L; measured as the volume of the zone before the beads
+    #first_tank_volume = 2000 * 10**-3 # L; measured as the volume of the zone before the beads
  #   first_tank_surface = 0.005 #m^2
     dTdt[0] = (tank_surface*alpha*(T_outside - T[0]) + Boltzman_constant*epsilon*(T_outside**4 - T[0]**4) + alpha_conv*(T_in - T[0]))/(first_tank_volume/trunk*density_glass*heat_capacity_glass)
     for i in range (1, trunk):
@@ -91,7 +92,7 @@ def heatbalance(T, t_span, params):
 delta = 1e-6
 
 lambda_reg = 1e-6
-params_prior = np.array([2, 0])
+params_prior = np.array([2, 0, 0, 0])
 
 def residuals_reg(params_array, t_eval, T0, T_measured):
     r = residuals(params_array, t_eval, T0, T_measured)
@@ -105,13 +106,28 @@ t_span = np.linspace(0, total_time, time_increments) #seconds
 dt = total_time/(time_increments-1)
 
 #T_steady_state = np.linspace(-178, -140, number_of_tanks)
-T_steady_state = T_window.loc[start]["T201_PV":"T225_PV"]
+
+#select which indices are actually measured against
 measured_indices = np.array(np.concatenate(([0], np.arange(trunk, number_of_tanks-1))))
+
+
 #T_steady_state_values = T_steady_state.values
 #print(measured_indices.shape, T_steady_state.values.shape)
+T_measured = T_window.loc[:, "T210_PV":"T225_PV"].values
 
+float_index = np.linspace(0, 14.9999, N_sim)
+T_interpolated = []
+T_interpolated.append(T_measured[:,0])
+for i in range(1,N_sim):
+    #interpolate N_meas
+    T_interpolated.append(T_measured[:,int(float_index[i])] + (T_measured[:,int(float_index[i])+1]-T_measured[:,int(float_index[i])])*(float_index[i] - int(float_index[i])))
+
+T_interpol = np.transpose(T_interpolated)
+plt.plot(t_span, np.transpose(T_interpolated))
+
+T_steady_state = T_interpol[0,:]
 # 1B: PCHIP (monotone cubic) — voorkomt overshoot en 'waviness'
-pchip = PchipInterpolator(measured_indices, T_steady_state.values, extrapolate=False)
+pchip = PchipInterpolator(measured_indices, T_steady_state, extrapolate=False)
 T0_pchip = pchip(np.arange(number_of_tanks-1))
 
 alpha_dummy = 20 # W/m^2K
@@ -129,25 +145,26 @@ def residuals(params_array, t_eval, T0, T_measured):
         # Give bigger residues when alpha is negative
    #     return 1e6 * np.ones_like(T_meas_flat)
     sim = model_T(params_array, t_eval, T0)
-    sim_measured = sim[:, measured_indices]
+    sim_measured = sim[:, measured_indices[1:]]
    # print(sim_measured.shape)
    # sim_measured_flat = sim_measured.flatten()
-    res = sim_measured.flatten() - T_measured.flatten()
+    res = sim_measured.flatten() - T_interpol[:, 1:].flatten()
     # print("Residuals preview:", res[500:510])   # eerste 10 waardes
     # print("Shapes:", sim_measured.flatten().shape, T_measured.flatten().shape)
     # print("sim_measured:", sim_measured)
     return res
 
-T_measured = T_window.loc[:, "T201_PV":"T225_PV"].values
 
 #T_meas_flat = T_measured.flatten()
 
 # initial guess and bounds (alpha > 0)
-alpha0 = 2   # play with this
+alpha0 = 5   # play with this
 T_in0 = 10
-x0 = np.array([alpha0, T_in0])
-lower = [0,         -10]
-upper = [20000.0,    20]
+first_tank_volume0 = 1
+void_fraction0 = 0.1
+x0 = np.array([alpha0, T_in0, first_tank_volume0, void_fraction0])
+lower = [0,         -10,    0,  0]
+upper = [20000.0,    20,    10, 1]
 
 res = least_squares(
     residuals_reg,
@@ -162,21 +179,23 @@ res = least_squares(
 )
 
 params_fit = res.x
-print("Fitted parameters alpha_conv, T_in=", params_fit)
+print("Fitted parameters alpha_conv, T_in, first_tank_volume, void_fraction=", params_fit)
 
 # genereer model met gefitte alpha
 T_sim = model_T(params_fit, t_span, T0_pchip).reshape(len(t_span), number_of_tanks-1)[:,measured_indices]
 
 #plotting the CSTR-in-series
-plt.subplots(4,4,figsize=(14,8))
-for i in range(16):
-    plt.subplot(4,4,i+1)
+plt.subplots(4,3,figsize=(10,8))
+for i in range(np.min([N_sim-1, 16])):
+    plt.subplot(4,3,i+1)
     plt.plot(t_span, T_sim[:,i+1], label="model", marker=',', color='b')
-    plt.plot(t_span, T_measured[:,i+1], label='measured', marker=',', color='r')
+    plt.plot(t_span, T_interpol[:,i+1], label='measured', marker=',', color='r')
     plt.xlabel("Time [s]")
     plt.ylabel("Temperature [°C]")
     plt.title(f"Tank {i+1}")
-
+plt.subplot(4,3,12)
+plt.plot(0,0,label="model", marker=',', color='b')
+plt.plot(0,0,label='measured', marker=',', color='r')
 plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
 plt.tight_layout()
 #plt.text(600, 600, f'alpha = {params_fit[0]:.2f}', fontsize=22)
