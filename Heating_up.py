@@ -27,7 +27,7 @@ T_window = T_rolling.loc[start:end]
 
 
 # plot vs time index
-for col in T_rolling.columns:
+for col in T_rolling.loc[:, "T210_PV":"T225_PV"].columns:
     plt.plot(T_rolling.index, T_rolling[col], label=col)
 
 plt.xlabel("Time")
