@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 from scipy.integrate import odeint
 from scipy.optimize import least_squares
 #from Model1 import temperature_steady_state
-path = r"C:\Users\20223544\TU Eindhoven\Vullings, Stan - PPT\Data\Day 8\free cooling (5 hrs).csv"
+path = r"Data\free cooling (5 hrs).csv"
 
 # read correctly: EU numbers + parse first col as datetime
 data = pd.read_csv(path, sep=',', decimal=',', parse_dates=[0])
