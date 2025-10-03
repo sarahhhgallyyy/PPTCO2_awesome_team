@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-from scipy.integrate import odeint
+from scipy.integrate import odeint, solve_ivp
 from scipy.optimize import least_squares
 from Heating_up import alpha_fit as alpha 
 from Heating_up import T_outside_fit as T_outside
@@ -35,7 +35,7 @@ plt.show()
 
 # some constants
 
-enthalpy_of_sublimation_CO2 = 591 * 10**3 *5 #J/kg (delete the 10)
+enthalpy_of_sublimation_CO2 = 591 * 10**3 / 1#J/kg 
 sublimation_point_CO2 = -100 #C
 heat_capacity_glass = 0.840 #J/gK
 density_glass = 2.2 #g/mL
@@ -70,8 +70,9 @@ Boltzman_constant = 5.67*10**-8 #W/m^2K^-4
 #T_in = 0 #°C
 
 
-
-def heatbalance(T, m, t_span, params):
+def heatbalance(y, t_span, params):
+    T = y[:number_of_tanks] #does not work for the plot yet (;_;)
+    m = y[number_of_tanks:]
     alpha_conv, T_in, first_tank_volume, void_fraction, mass_cap = params
     dTdt = np.zeros_like(T)
     dmdt = np.zeros_like(m)
@@ -105,12 +106,14 @@ def heatbalance(T, m, t_span, params):
         else:
             dTdt[i] = (tank_surface*alpha*(T_outside - T[i]) + Boltzman_constant*epsilon*(T_outside**4 - T[i]**4) + alpha_conv*(T[i-1] - T[i]))/(tank_volume*density_glass*heat_capacity_glass)
             dmdt[i] = 0
-    return dTdt, dmdt
+            
+    
+    return np.concatenate([dTdt, dmdt])
 
 delta = 1e-6
 
 lambda_reg = 1e-6
-params_prior = np.array([2, 0, 0, 0])
+params_prior = np.array([2, 0, 0, 0, 0])
 
 def residuals_reg(params_array, t_eval, T0, T_measured):
     r = residuals(params_array, t_eval, T0, T_measured)
@@ -126,7 +129,7 @@ dt = total_time/(time_increments-1)
 #T_steady_state = np.linspace(-178, -140, number_of_tanks)
 
 #select which indices are actually measured against
-measured_indices = np.array(np.concatenate(([0], np.arange(trunk, number_of_tanks-1))))
+measured_indices = np.array(np.concatenate(([0], np.arange(trunk+1, number_of_tanks))))
 
 
 #T_steady_state_values = T_steady_state.values
@@ -146,31 +149,37 @@ plt.plot(t_span, np.transpose(T_interpolated))
 T_steady_state = T_interpol[0,:]
 # 1B: PCHIP (monotone cubic) — voorkomt overshoot en 'waviness'
 pchip = PchipInterpolator(measured_indices, T_steady_state, extrapolate=False)
-T0_pchip = pchip(np.arange(number_of_tanks-1))
+T0_pchip = pchip(np.arange(number_of_tanks))
+
+T0 = T0_pchip          # of je steady-state startwaarden
+m0 = np.zeros(number_of_tanks)  # of een startmassa
+y0 = np.concatenate([T0, m0])
 
 alpha_dummy = 20 # W/m^2K
 
-def model_T(params, t_eval, T0):
+def model_T(params, t_eval, y0):
     """Return temperatures (len(t_eval)*n_tanks) for least_squares."""
     # odeint expects args as tuple; make sure alpha is a scalar
-    sol = odeint(heatbalance, T0, t_eval, args=(params,))
-    
-    # sol shape = (len(t_eval), number_of_tanks)
+    sol = solve_ivp(lambda t, y: heatbalance(y, t, params),
+                    (t_eval[0], t_eval[-1]), y0, t_eval=t_eval,
+                    method='BDF', max_step=1.0)
+    if not sol.success:
+        raise RuntimeError("ODE solver failed: " + str(sol.message))
+    # sol.y shape = (2*N, nt) -> transpose to (nt, 2*N) for consistency
     return sol
 
-def residuals(params_array, t_eval, T0, T_measured):
-    
-   # if alpha < 0:
-        # Give bigger residues when alpha is negative
-   #     return 1e6 * np.ones_like(T_meas_flat)
-    sim = model_T(params_array, t_eval, T0)
-    sim_measured = sim[:, measured_indices[1:]]
-   # print(sim_measured.shape)
-   # sim_measured_flat = sim_measured.flatten()
-    res = sim_measured.flatten() - T_interpol[:, 1:].flatten()
-    # print("Residuals preview:", res[500:510])   # eerste 10 waardes
-    # print("Shapes:", sim_measured.flatten().shape, T_measured.flatten().shape)
-    # print("sim_measured:", sim_measured)
+def residuals(params_array, t_eval, y0, T_measured):
+   # simulate
+    sol = model_T(params_array, t_eval, y0)   # shape (nt, 2*N)
+    T_sim = sol.y.T[:, :number_of_tanks]          # only temperatures
+    # Ensure measured_indices are valid
+    if np.any(np.array(measured_indices) < 0) or np.any(np.array(measured_indices) >= number_of_tanks):
+        raise IndexError("measured_indices outside 0..number_of_tanks-1: " + str(measured_indices))
+    sim_measured = T_sim[:, measured_indices]    # shape (nt, N_meas)
+    # Compare to the same object you built for interpolation (T_interpol)
+    if sim_measured.shape != T_interpol.shape:
+        raise ValueError(f"Shape mismatch sim_measured {sim_measured.shape} vs T_interpol {T_interpol.shape}")
+    res = sim_measured.flatten() - T_interpol.flatten()
     return res
 
 
@@ -190,7 +199,7 @@ res = least_squares(
     residuals_reg,
     x0=x0,
     bounds=(lower, upper),
-    args=(t_span, T0_pchip, T_measured),
+    args=(t_span, y0, T_interpol),
     method='trf',   # trust-region reflective, werkt goed met bounds
     xtol=1e-10,
     ftol=1e-10,
@@ -200,7 +209,6 @@ res = least_squares(
 
 params_fit = res.x
 print("Fitted parameters alpha_conv, T_in, first_tank_volume, void_fraction=", params_fit)
-params_fit = res.x
 
 # Residual variance estimate
 n = len(res.fun)
@@ -217,7 +225,12 @@ print("Fitted parameters:", params_fit)
 print("Standard deviations:", param_std)
 
 # genereer model met gefitte alpha
-T_sim = model_T(params_fit, t_span, T0_pchip).reshape(len(t_span), number_of_tanks-1)[:,measured_indices]
+#T_sim = model_T(params_fit, t_span, y0)#.reshape(len(t_span), 2*number_of_tanks-1)[:,measured_indices]
+sol = model_T(params_fit, t_span, y0)   # shape (nt, 2*N)
+T_sim = sol.y.T[:, :number_of_tanks]        # shape (nt, N)
+m_sim = sol.y.T[:, number_of_tanks:]        # shape (nt, N)
+
+T_sim_meas = T_sim[:, measured_indices]   # measured_indices must be in 0..number_of_tanks-1
 
 #plotting the CSTR-in-series
 plt.subplots(4,3,figsize=(10,8))
