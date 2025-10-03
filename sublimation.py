@@ -18,8 +18,8 @@ data = data.rename(columns={data.columns[0]: 'DateTime'}).set_index('DateTime')
 data = data.apply(pd.to_numeric, errors='coerce')
 window_size = 32
 T_rolling = data.rolling(window=window_size).mean()
-start = pd.Timestamp("2025-09-22 14:18:48")
-end = pd.Timestamp("2025-09-22 15:15:35")
+start = pd.Timestamp("2025-09-17 09:52:49.114000")
+end = pd.Timestamp("2025-09-17 10:29:20.114000")
 T_window = T_rolling.loc[start:end]
 
 
@@ -35,21 +35,21 @@ plt.show()
 
 # some constants
 
-enthalpy_of_sublimation_CO2 = 591 * 10**3 #J/kg
-sublimation_point_CO2 = -78 #K
+enthalpy_of_sublimation_CO2 = 591 * 10**3 *5 #J/kg (delete the 10)
+sublimation_point_CO2 = -100 #C
 heat_capacity_glass = 0.840 #J/gK
 density_glass = 2.2 #g/mL
 
 # getting the right thermal mass
 heat_capacity_N2 = 1040 # J/kgK
 density_N2 = 1.16 * 10**-3 #kg/Ln
-volume_flow_N2_mins = data.values[10][0] #Ln/min
+volume_flow_N2_mins = T_window.values[100][0] #Ln/min
 volume_flow_N2_sec = volume_flow_N2_mins / 60 #Ln/sec
 thermal_mass_flow_N2 = heat_capacity_N2 * density_N2 * volume_flow_N2_sec #W/K
 
 heat_capacity_CO2 = 735 # J/kgK @200K (near sublimation point)
 density_CO2 = 1.815 * 10**-3 #kg/Ln
-volume_flow_CO2_mins = data.values[10][3] #Ln/min
+volume_flow_CO2_mins = T_window.values[50][2] #Ln/min
 volume_flow_CO2_sec = volume_flow_CO2_mins / 60 #Ln/sec
 thermal_mass_flow_CO2 = heat_capacity_CO2 * density_CO2 * volume_flow_CO2_sec #W/K
 
@@ -71,9 +71,10 @@ Boltzman_constant = 5.67*10**-8 #W/m^2K^-4
 
 
 
-def heatbalance(T, t_span, params):
-    alpha_conv, T_in, first_tank_volume, void_fraction = params
+def heatbalance(T, m, t_span, params):
+    alpha_conv, T_in, first_tank_volume, void_fraction, mass_cap = params
     dTdt = np.zeros_like(T)
+    dmdt = np.zeros_like(m)
     tank_volume = tank_void/void_fraction #mL
     #first tank
     #first_tank_volume = 2000 * 10**-3 # L; measured as the volume of the zone before the beads
@@ -85,16 +86,26 @@ def heatbalance(T, t_span, params):
         Always add heating by the environment (as experimentally determined at steady state).
         NB: this heat loss is now treated as a constant for each tank, while it should be a
         function of Delta_T."""
-        if T[i] >= sublimation_point_CO2 and T[i-1] < sublimation_point_CO2:
+        if T[i] <= sublimation_point_CO2 and T[i-1] > sublimation_point_CO2 and m[i] < mass_cap:
             dTdt[i] = (tank_surface*alpha*(T_outside - T[i]) + Boltzman_constant*epsilon*(T_outside**4 - T[i]**4) + alpha_conv*(T[i-1] - T[i]) + sublimation_heat_CO2)/(first_tank_volume*tank_volume*density_glass*heat_capacity_glass/trunk)
+            dmdt[i] = volume_flow_CO2_sec * density_CO2
+        elif T[i] > sublimation_point_CO2 and m[i] > 0:
+            dTdt[i] = (tank_surface*alpha*(T_outside - T[i]) + Boltzman_constant*epsilon*(T_outside**4 - T[i]**4) + alpha_conv*(T[i-1] - T[i]) + -sublimation_heat_CO2)/(first_tank_volume*tank_volume*density_glass*heat_capacity_glass/trunk)
+            dmdt[i] = -volume_flow_CO2_sec * density_CO2
         else:
             dTdt[i] = (tank_surface*alpha*(T_outside - T[i]) + Boltzman_constant*epsilon*(T_outside**4 - T[i]**4) + alpha_conv*(T[i-1] - T[i]))/(first_tank_volume*tank_volume*density_glass*heat_capacity_glass/trunk)
+            dmdt[i] = 0
     for i in range(trunk, T.size):
-        if T[i] >= sublimation_point_CO2 and T[i-1] < sublimation_point_CO2:
+        if T[i] <= sublimation_point_CO2 and T[i-1] > sublimation_point_CO2 and m[i] < mass_cap:
             dTdt[i] = (tank_surface*alpha*(T_outside - T[i]) + Boltzman_constant*epsilon*(T_outside**4 - T[i]**4) + alpha_conv*(T[i-1] - T[i]) + sublimation_heat_CO2)/(tank_volume*density_glass*heat_capacity_glass)
+            dmdt[i] = volume_flow_CO2_sec * density_CO2
+        elif T[i] > sublimation_point_CO2 and m[i] > 0:
+            dTdt[i] = (tank_surface*alpha*(T_outside - T[i]) + Boltzman_constant*epsilon*(T_outside**4 - T[i]**4) + alpha_conv*(T[i-1] - T[i]) - sublimation_heat_CO2)/(tank_volume*density_glass*heat_capacity_glass)
+            dmdt[i] = -volume_flow_CO2_sec * density_CO2
         else:
             dTdt[i] = (tank_surface*alpha*(T_outside - T[i]) + Boltzman_constant*epsilon*(T_outside**4 - T[i]**4) + alpha_conv*(T[i-1] - T[i]))/(tank_volume*density_glass*heat_capacity_glass)
-    return dTdt
+            dmdt[i] = 0
+    return dTdt, dmdt
 
 delta = 1e-6
 
@@ -143,6 +154,7 @@ def model_T(params, t_eval, T0):
     """Return temperatures (len(t_eval)*n_tanks) for least_squares."""
     # odeint expects args as tuple; make sure alpha is a scalar
     sol = odeint(heatbalance, T0, t_eval, args=(params,))
+    
     # sol shape = (len(t_eval), number_of_tanks)
     return sol
 
@@ -165,13 +177,14 @@ def residuals(params_array, t_eval, T0, T_measured):
 #T_meas_flat = T_measured.flatten()
 
 # initial guess and bounds (alpha > 0)
-alpha0 = 5   # play with this
+alpha0 = 1   # play with this
 T_in0 = 10
 first_tank_volume0 = 1
 void_fraction0 = 0.1
-x0 = np.array([alpha0, T_in0, first_tank_volume0, void_fraction0])
-lower = [0,         -10,    0,  0]
-upper = [20000.0,    20,    10, 1]
+mass_cap0 = 0.005
+x0 = np.array([alpha0, T_in0, first_tank_volume0, void_fraction0, mass_cap0])
+lower = [0,     -10,    0,  0,  0]
+upper = [2.0,    20,    10, 1,  1]
 
 res = least_squares(
     residuals_reg,
