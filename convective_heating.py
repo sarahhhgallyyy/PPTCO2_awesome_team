@@ -180,6 +180,21 @@ res = least_squares(
 
 params_fit = res.x
 print("Fitted parameters alpha_conv, T_in, first_tank_volume, void_fraction=", params_fit)
+params_fit = res.x
+
+# Residual variance estimate
+n = len(res.fun)
+p = len(res.x)
+dof = max(1, n - p)
+residual_variance = np.sum(res.fun**2) / dof
+
+# Covariance matrix and standard deviations
+J = res.jac
+cov = np.linalg.inv(J.T @ J) * residual_variance
+param_std = np.sqrt(np.diag(cov))
+
+print("Fitted parameters:", params_fit)
+print("Standard deviations:", param_std)
 
 # genereer model met gefitte alpha
 T_sim = model_T(params_fit, t_span, T0_pchip).reshape(len(t_span), number_of_tanks-1)[:,measured_indices]
