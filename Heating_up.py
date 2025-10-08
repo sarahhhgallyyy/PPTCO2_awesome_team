@@ -50,7 +50,7 @@ number_of_tanks = 17
 Boltzman_constant = 5.67*10**-8 #W/m^2K^-4
 
 #T_outside = 20 # °C
-T_in = -196 #°C
+T_in = 77 #K
 
 def heatbalance(T, t_span, params):
     alpha, T_outside, epsilon = params
@@ -73,7 +73,7 @@ t_span = np.linspace(0, total_time, time_increments) #seconds
 dt = total_time/(time_increments-1)
 
 #T_steady_state = np.linspace(-178, -140, number_of_tanks)
-T_steady_state = T_window.loc[start]["T210_PV":"T225_PV"]
+T_steady_state = T_window.loc[start]["T210_PV":"T225_PV"]+273
 
 alpha_dummy = 20 # W/m^2K
 
@@ -92,17 +92,17 @@ def residuals(params_array, t_eval, T0, T_meas_flat):
     sim_flat = model_T_flat(params_array, t_eval, T0)
     return sim_flat - T_meas_flat
 
-T_measured = T_window.loc[:, "T210_PV":"T225_PV"].values
+T_measured = T_window.loc[:, "T210_PV":"T225_PV"].values +273
 
 T_meas_flat = T_measured.flatten()
 
 # initial guess and bounds (alpha > 0)
 alpha0 = 2000   # play with this
-T_outside0 = -10
+T_outside0 = 263
 epsilon0 = 0
 x0 = np.array([alpha0, T_outside0, epsilon0])
-lower = [0,        -20.0,    0.0]
-upper = [20000.0,   50.0,    1.0]
+lower = [0,        253,    0.0]
+upper = [20000.0,  323,    1.0]
 
 res = least_squares(
     residuals,
