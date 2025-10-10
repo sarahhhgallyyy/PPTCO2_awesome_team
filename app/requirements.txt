@@ -1,0 +1,6 @@
+# Project dependencies
+streamlit
+pandas
+numpy
+scipy
+plotly
