@@ -9,7 +9,7 @@ from Heating_up import T_outside_fit as T_outside
 from Heating_up import epsilon_fit as epsilon
 from scipy.interpolate import PchipInterpolator
 #from Model1 import temperature_steady_state
-path = r"Data\Day 5 foil and 20 N2 0.06 CO2.csv"
+path = r"C:\Users\20212148\Documents\GitHub\PPTCO2_awesome_team\Data\Day 5 foil and 20 N2 0.06 CO2.csv"
 
 # read correctly: EU numbers + parse first col as datetime
 data = pd.read_csv(path, sep=',', decimal=',', parse_dates=[0])
@@ -39,8 +39,8 @@ plt.show()
 enthalpy_of_sublimation_CO2_mol = 26.3e3 #J/mol @ 167K source: https://webbook.nist.gov/cgi/cbook.cgi?ID=C124389&Mask=4
 molar_mass_CO2 = 44e-3 #kg/mol source: chemists know this
 enthalpy_of_sublimation_CO2 = enthalpy_of_sublimation_CO2_mol / molar_mass_CO2 #J/kg @ 167 K 
-heat_capacity_glass = 840 #J/kgK source: https://en.wikipedia.org/wiki/Table_of_specific_heat_capacities
-density_glass = 2.2e3 #kg/m^3 assuming fused silica. source: https://en.wikipedia.org/wiki/List_of_physical_properties_of_glass
+heat_capacity_glass = 880 #J/kgK source: https://en.wikipedia.org/wiki/Table_of_specific_heat_capacities
+density_glass = 2.5e3 #kg/m^3 assuming fused silica. source: https://en.wikipedia.org/wiki/List_of_physical_properties_of_glass
 
 # getting the right thermal mass
 heat_capacity_N2 = 1039 # J/kgK source: https://www.engineeringtoolbox.com/nitrogen-d_977.html
@@ -68,10 +68,13 @@ N_sim = 12
 number_of_tanks = N_sim + trunk
 tank_void = 160/N_sim/10**6 #m^3 (void part)
 tank_diameter = 0.03490 #m
+tank_thickness = 3.26*10**-3 #m
+wall_volume_total = ((tank_diameter / 2 + tank_thickness)**2 - (tank_diameter /2)**2) * math.pi * 0.03*17
 tank_volume_total = tank_diameter**2*math.pi/4*(.030*17)
-tank_volume = tank_volume_total/N_sim
+tank_volume = (tank_volume_total + wall_volume_total)/N_sim
 #void_fraction = 0.1 # guessed for now
 Boltzman_constant = 5.67*10**-8 #W/m^2K^-4
+Factor_packing = 1 #taken up space of the beads
 
 partial_pressure_CO2 = volume_flow_CO2_sec/(volume_flow_CO2_sec + volume_flow_N2_sec)
 #sublimation_point_CO2 = 1301.679 / (6.81228 - math.log10(partial_pressure_CO2)) - 3.494 #source: https://webbook.nist.gov/cgi/cbook.cgi?ID=C124389&Mask=4&Type=ANTOINE&Plot=on
@@ -92,7 +95,7 @@ def heat_and_massbalance(t, y, params):
     #first tank
     #first_tank_volume = 2000 * 10**-3 # L; measured as the volume of the zone before the beads
  #   first_tank_surface = 0.005 #m^2
-    dTdt[0] = (tank_surface*alpha*(T_outside - T[0]) + Boltzman_constant*epsilon*(T_outside**4 - T[0]**4) + alpha_conv*(T_in - T[0]))/(first_tank_volume/trunk*density_glass*heat_capacity_glass)
+    dTdt[0] = (tank_surface*alpha*(T_outside - T[0]) + Boltzman_constant*epsilon*(T_outside**4 - T[0]**4) + alpha_conv*(T_in - T[0]))/(first_tank_volume*density_glass*heat_capacity_glass*Factor_packing/trunk)
     F[0] = volume_flow_CO2_sec
     # Trunk tanks
     for i in range(1, trunk):        
@@ -107,7 +110,7 @@ def heat_and_massbalance(t, y, params):
             dmdt[i] = (F[i-1] * density_CO2) * (sublimation_point_CO2 - T[i])
             F[i] = F[i-1] - dmdt[i] / density_CO2
             heat_desub = dmdt[i] * (enthalpy_of_sublimation_CO2 + (T[i] - sublimation_point_CO2)*heat_capacity_CO2)
-            dTdt[i] = (heat_env + heat_conv_no_CO2 + heat_desub) / (first_tank_volume*density_glass*heat_capacity_glass/trunk + m[i]*heat_capacity_CO2)
+            dTdt[i] = (heat_env + heat_conv_no_CO2 + heat_desub) / (first_tank_volume*density_glass*heat_capacity_glass*Factor_packing/trunk + m[i]*heat_capacity_CO2)
         #predesublimation
         elif T[i] < sublimation_point_CO2 and (F[i-2] == 0):
             dmdt[i] = 0
@@ -116,7 +119,7 @@ def heat_and_massbalance(t, y, params):
         elif T[i] < sublimation_point_CO2 and F[i-1] == 0:
             dmdt[i] = 0
             F[i] = F[i-1] - dmdt[i] / density_CO2
-            dTdt[i] = (heat_env + heat_conv_no_CO2 + heat_desub) / (first_tank_volume*density_glass*heat_capacity_glass/trunk + m[i]*heat_capacity_CO2)
+            dTdt[i] = (heat_env + heat_conv_no_CO2 + heat_desub) / (first_tank_volume*density_glass*heat_capacity_glass*Factor_packing/trunk + m[i]*heat_capacity_CO2)
         #sublimation
         elif T[i] >= sublimation_point_CO2 and m[i] > 1e-4:
             dmdt[i] = -(heat_env + heat_conv) / enthalpy_of_sublimation_CO2 #kg/s
@@ -127,7 +130,7 @@ def heat_and_massbalance(t, y, params):
             dmdt[i] = 0
             F[i] = F[i-1] - dmdt[i] / density_CO2
             dTdt[i] = (tank_surface*alpha*(T_outside - T[i]) + Boltzman_constant*epsilon*(T_outside**4 - T[i]**4) + alpha_conv*(T[i-1] - T[i])
-                       *(heat_capacity_N2*density_N2*volume_flow_N2_sec + heat_capacity_CO2*density_CO2*F[i-1]))/(first_tank_volume*density_glass*heat_capacity_glass/trunk + m[i]*heat_capacity_CO2)
+                       *(heat_capacity_N2*density_N2*volume_flow_N2_sec + heat_capacity_CO2*density_CO2*F[i-1]))/(first_tank_volume*density_glass*heat_capacity_glass*Factor_packing/trunk + m[i]*heat_capacity_CO2)
     for i in range(trunk, T.size):
         # Calculate heat transfer
         heat_env = tank_surface*alpha*(T_outside - T[i]) + Boltzman_constant*epsilon*(T_outside**4 - T[i]**4)
@@ -140,7 +143,7 @@ def heat_and_massbalance(t, y, params):
             dmdt[i] = (F[i-1] * density_CO2)
             F[i] = F[i-1] - dmdt[i] / density_CO2
             heat_desub = dmdt[i] * (enthalpy_of_sublimation_CO2 + (T[i] - sublimation_point_CO2)*heat_capacity_CO2)
-            dTdt[i] = (heat_env + heat_conv_no_CO2 + heat_desub) / (tank_volume*density_glass*heat_capacity_glass + m[i]*heat_capacity_CO2)
+            dTdt[i] = (heat_env + heat_conv_no_CO2 + heat_desub) / (tank_volume*density_glass*heat_capacity_glass*Factor_packing + m[i]*heat_capacity_CO2)
         #predesublimation
         elif T[i] <= sublimation_point_CO2 and (F[i-3] <1e-3):
             dmdt[i] = 0
@@ -149,7 +152,7 @@ def heat_and_massbalance(t, y, params):
         elif T[i] <= sublimation_point_CO2 and F[i-2] < 1e-3:
             dmdt[i] = 0
             F[i] = F[i-1] - dmdt[i] / density_CO2
-            dTdt[i] = (heat_env + heat_conv) / (tank_volume*density_glass*heat_capacity_glass + m[i]*heat_capacity_CO2)
+            dTdt[i] = (heat_env + heat_conv) / (tank_volume*density_glass*heat_capacity_glass*Factor_packing + m[i]*heat_capacity_CO2)
         #sublimation
         # elif T[i] > sublimation_point_CO2 and m[i] > 1e-3:
         #     dmdt[i] = -(heat_env + heat_conv_no_CO2) / enthalpy_of_sublimation_CO2 #kg/s
@@ -159,12 +162,12 @@ def heat_and_massbalance(t, y, params):
             dmdt[i] = -(heat_env + heat_conv) / enthalpy_of_sublimation_CO2#kg/s
             F[i] = F[i-1] - dmdt[i] / density_CO2
             heat_sub = dmdt[i] * (enthalpy_of_sublimation_CO2 + (T[i] - sublimation_point_CO2)*heat_capacity_CO2)
-            dTdt[i] = (heat_env + heat_conv_no_CO2 + heat_sub) / (tank_volume*density_glass*heat_capacity_glass + m[i]*heat_capacity_CO2)  #K/s
+            dTdt[i] = (heat_env + heat_conv_no_CO2 + heat_sub) / (tank_volume*density_glass*heat_capacity_glass*Factor_packing + m[i]*heat_capacity_CO2)  #K/s
         #post-desublimation
         else:
             dmdt[i] = 0
             F[i] = F[i-1] - dmdt[i] / density_CO2
-            dTdt[i] = (heat_env + heat_conv) / (tank_volume*density_glass*heat_capacity_glass + m[i]*heat_capacity_CO2)
+            dTdt[i] = (heat_env + heat_conv) / (tank_volume*density_glass*heat_capacity_glass*Factor_packing + m[i]*heat_capacity_CO2)
             
     return np.concatenate([dTdt, dmdt])
 
@@ -222,7 +225,7 @@ y0 = np.concatenate([T0, m0])
 alpha_dummy = 20 # W/m^2K
 
 def model_T(params, t_eval, y0):
-   """Return temperatures (len(t_eval) × n_states) for least_squares."""
+    """Return temperatures (len(t_eval) × n_states) for least_squares."""  
     sol = solve_ivp(
         lambda t, y: heat_and_massbalance(t, y, params),
         (t_eval[0], t_eval[-1]),
@@ -234,7 +237,6 @@ def model_T(params, t_eval, y0):
         atol=1e-8
     )
 
-    
     if not sol.success:
         raise RuntimeError("ODE solver failed: " + str(sol.message))
 
