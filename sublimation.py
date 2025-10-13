@@ -116,7 +116,7 @@ def heat_and_massbalance(t, y, params):
             CO2_flowrate[i] = CO2_flowrate[i-1]
             dTdt[i] = (heat_env + heat_conv_no_CO2 + heat_desub) / (first_tank_volume*density_glass*heat_capacity_glass/trunk + m[i]*heat_capacity_CO2)
         #sublimation
-        elif T[i] >= sublimation_point_CO2 and m[i] > 0:
+        elif T[i] >= sublimation_point_CO2 and m[i] > 1e-4:
             dmdt[i] = -(heat_env + heat_conv) / enthalpy_of_sublimation_CO2 #kg/s
             dTdt[i] = 0 #K/s
             CO2_flowrate[i] = CO2_flowrate[i-1] - (dmdt[i] / density_CO2) #Ln/s
@@ -140,7 +140,7 @@ def heat_and_massbalance(t, y, params):
             heat_desub = dmdt[i] * (enthalpy_of_sublimation_CO2 + (T[i] - sublimation_point_CO2)*heat_capacity_CO2)
             dTdt[i] = (heat_env + heat_conv_no_CO2 + heat_desub) / (tank_volume*density_glass*heat_capacity_glass + m[i]*heat_capacity_CO2)
         #predesublimation
-        elif T[i] <= sublimation_point_CO2 and (CO2_flowrate[i-3] < 1e-3):
+        elif T[i] <= sublimation_point_CO2 and (CO2_flowrate[i-3] <1e-3):
             dmdt[i] = 0
             dTdt[i] = 0
             CO2_flowrate[i] = CO2_flowrate[i-1]
@@ -149,14 +149,14 @@ def heat_and_massbalance(t, y, params):
             CO2_flowrate[i] = CO2_flowrate[i-1]
             dTdt[i] = (heat_env + heat_conv) / (tank_volume*density_glass*heat_capacity_glass + m[i]*heat_capacity_CO2)
         #sublimation
-        elif T[i] > sublimation_point_CO2 and m[i] > 1e-3:
-            dmdt[i] = -(heat_env + heat_conv_no_CO2) / enthalpy_of_sublimation_CO2 #kg/s
-            dTdt[i] = 0 #K/s
-            CO2_flowrate[i] = CO2_flowrate[i-1] - (dmdt[i] / density_CO2) #Ln/s
+        # elif T[i] > sublimation_point_CO2 and m[i] > 1e-3:
+        #     dmdt[i] = -(heat_env + heat_conv_no_CO2) / enthalpy_of_sublimation_CO2 #kg/s
+        #     dTdt[i] = 0 #K/s
+        #     CO2_flowrate[i] = CO2_flowrate[i-1] - (dmdt[i] / density_CO2) #Ln/s
         elif T[i] > sublimation_point_CO2 and m[i] > 0:
-            dmdt[i] = -(heat_env + heat_conv_no_CO2) / enthalpy_of_sublimation_CO2 #kg/s
+            dmdt[i] = -(heat_env + heat_conv) / enthalpy_of_sublimation_CO2 * abs(max((math.exp(m[i]/1e-3 - 1), 1)))#kg/s
             CO2_flowrate[i] = CO2_flowrate[i-1] - (dmdt[i] / density_CO2) #Ln/s
-            heat_sub = -dmdt[i] * (enthalpy_of_sublimation_CO2 + (T[i] - sublimation_point_CO2)*heat_capacity_CO2)
+            heat_sub = dmdt[i] * (enthalpy_of_sublimation_CO2 + (T[i] - sublimation_point_CO2)*heat_capacity_CO2)
             dTdt[i] = (heat_env + heat_conv_no_CO2 + heat_sub) / (tank_volume*density_glass*heat_capacity_glass + m[i]*heat_capacity_CO2)  #K/s
         #post-desublimation
         else:
