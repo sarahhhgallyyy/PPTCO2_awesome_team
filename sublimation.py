@@ -8,6 +8,7 @@ from Heating_up import alpha_fit as alpha
 from Heating_up import T_outside_fit as T_outside
 from Heating_up import epsilon_fit as epsilon
 from scipy.interpolate import PchipInterpolator
+
 #from Model1 import temperature_steady_state
 path = r"Data\Day 5 foil and 20 N2 0.06 CO2.csv"
 
@@ -104,7 +105,7 @@ def heat_and_massbalance(t, y, params):
         
         #desublimation
         if (T[i] < sublimation_point_CO2) and (F[i-1] > 0):
-            dmdt[i] = (F[i-1] * density_CO2) * (sublimation_point_CO2 - T[i])
+            dmdt[i] = (F[i-1] * density_CO2)
             F[i] = F[i-1] - dmdt[i] / density_CO2
             heat_desub = dmdt[i] * (enthalpy_of_sublimation_CO2 + (T[i] - sublimation_point_CO2)*heat_capacity_CO2)
             dTdt[i] = (heat_env + heat_conv_no_CO2 + heat_desub) / (first_tank_volume*density_glass*heat_capacity_glass/trunk + m[i]*heat_capacity_CO2)
@@ -222,7 +223,7 @@ y0 = np.concatenate([T0, m0])
 alpha_dummy = 20 # W/m^2K
 
 def model_T(params, t_eval, y0):
-   """Return temperatures (len(t_eval) × n_states) for least_squares."""
+    """Return temperatures (len(t_eval) × n_states) for least_squares."""  
     sol = solve_ivp(
         lambda t, y: heat_and_massbalance(t, y, params),
         (t_eval[0], t_eval[-1]),
@@ -234,7 +235,6 @@ def model_T(params, t_eval, y0):
         atol=1e-8
     )
 
-    
     if not sol.success:
         raise RuntimeError("ODE solver failed: " + str(sol.message))
 
@@ -363,24 +363,32 @@ plt.plot(t_span, T_sim_meas[:, [1,7,11]], label="T_model", color='b')
 plt.plot(t_span, T_interpol[:, [1,7,11]], label="T_measured", color='c')
 plt.xlabel("Time [s]")
 plt.ylabel("Temperature [K]")
-plt.title("Sublimation model for 20 tanks")
+plt.title("Sublimation model for 12 tanks")
 plt.legend(loc='upper right', bbox_to_anchor = (1.15, 1))
 
-F_sim = reconstruct_flowrate(t_span, m_sim_meas, density_CO2)
+def reconstruct_flowrate(t, m_sim, rho_CO2):
+    dm_dt = np.gradient(m_sim, t, axis=0)
+    F = np.zeros_like(m_sim)
+    F[:, 0] = volume_flow_CO2_sec
+    for i in range(1, m_sim.shape[1]):
+        F[:, i] = F[:, i-1] - dm_dt[:, i] / rho_CO2
+    return F
 
-#F_sim_meas = F_sim[:, measured_indices]
+F_sim = reconstruct_flowrate(t_span, m_sim_meas, density_CO2)
 
 plt.plot(t_span, F_sim, label="CO₂ flow per tank")
 plt.xlabel("Time [s]")
 plt.ylabel("CO₂ flowrate [Ln/s]")
-#plt.legend()
 plt.show()
 
+#F_sim_meas = F_sim[:, measured_indices]
+
+"""
 p = res.x
 r0 = residuals(p, t_span, T0_pchip, T_measured)
 p2 = p.copy(); p2[0] += 1e-3
 r1 = residuals(p2, t_span, T0_pchip, T_measured)
-print("norm diff:", np.linalg.norm(r1-r0))
+print("norm diff:", np.linalg.norm(r1-r0)) """
 
 
 #plt.text(600, 600, f'alpha = {params_fit[0]:.2f}', fontsize=22)
