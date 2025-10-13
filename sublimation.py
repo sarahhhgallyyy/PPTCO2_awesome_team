@@ -106,7 +106,6 @@ def heat_and_massbalance(t, y, params):
         if (T[i] < sublimation_point_CO2) and (F[i-1] > 0):
             dmdt[i] = (F[i-1] * density_CO2) * (sublimation_point_CO2 - T[i])
             F[i] = F[i-1] - dmdt[i] / density_CO2
-            dFdt[i] = -dmdt[i] / density_CO2
             heat_desub = dmdt[i] * (enthalpy_of_sublimation_CO2 + (T[i] - sublimation_point_CO2)*heat_capacity_CO2)
             dTdt[i] = (heat_env + heat_conv_no_CO2 + heat_desub) / (first_tank_volume*density_glass*heat_capacity_glass/trunk + m[i]*heat_capacity_CO2)
         #predesublimation
@@ -114,23 +113,19 @@ def heat_and_massbalance(t, y, params):
             dmdt[i] = 0
             dTdt[i] = 0
             F[i] = F[i-1] - dmdt[i] / density_CO2
-            dFdt[i] = -dmdt[i] / density_CO2
         elif T[i] < sublimation_point_CO2 and F[i-1] == 0:
             dmdt[i] = 0
             F[i] = F[i-1] - dmdt[i] / density_CO2
-            dFdt[i] = -dmdt[i] / density_CO2
             dTdt[i] = (heat_env + heat_conv_no_CO2 + heat_desub) / (first_tank_volume*density_glass*heat_capacity_glass/trunk + m[i]*heat_capacity_CO2)
         #sublimation
         elif T[i] >= sublimation_point_CO2 and m[i] > 1e-4:
             dmdt[i] = -(heat_env + heat_conv) / enthalpy_of_sublimation_CO2 #kg/s
             dTdt[i] = 0 #K/s
             F[i] = F[i-1] - dmdt[i] / density_CO2
-            dFdt[i] = -dmdt[i] / density_CO2 #Ln/s
         #post-sublimation
         else:
             dmdt[i] = 0
             F[i] = F[i-1] - dmdt[i] / density_CO2
-            dFdt[i] = -dmdt[i] / density_CO2
             dTdt[i] = (tank_surface*alpha*(T_outside - T[i]) + Boltzman_constant*epsilon*(T_outside**4 - T[i]**4) + alpha_conv*(T[i-1] - T[i])
                        *(heat_capacity_N2*density_N2*volume_flow_N2_sec + heat_capacity_CO2*density_CO2*F[i-1]))/(first_tank_volume*density_glass*heat_capacity_glass/trunk + m[i]*heat_capacity_CO2)
     for i in range(trunk, T.size):
@@ -144,7 +139,6 @@ def heat_and_massbalance(t, y, params):
         if (T[i] <= sublimation_point_CO2) and (F[i-1] > 0):
             dmdt[i] = (F[i-1] * density_CO2)
             F[i] = F[i-1] - dmdt[i] / density_CO2
-            dFdt[i] = -dmdt[i] / density_CO2
             heat_desub = dmdt[i] * (enthalpy_of_sublimation_CO2 + (T[i] - sublimation_point_CO2)*heat_capacity_CO2)
             dTdt[i] = (heat_env + heat_conv_no_CO2 + heat_desub) / (tank_volume*density_glass*heat_capacity_glass + m[i]*heat_capacity_CO2)
         #predesublimation
@@ -152,11 +146,9 @@ def heat_and_massbalance(t, y, params):
             dmdt[i] = 0
             dTdt[i] = 0
             F[i] = F[i-1] - dmdt[i] / density_CO2
-            dFdt[i] = -dmdt[i] / density_CO2
         elif T[i] <= sublimation_point_CO2 and F[i-2] < 1e-3:
             dmdt[i] = 0
             F[i] = F[i-1] - dmdt[i] / density_CO2
-            dFdt[i] = -dmdt[i] / density_CO2
             dTdt[i] = (heat_env + heat_conv) / (tank_volume*density_glass*heat_capacity_glass + m[i]*heat_capacity_CO2)
         #sublimation
         # elif T[i] > sublimation_point_CO2 and m[i] > 1e-3:
@@ -166,14 +158,12 @@ def heat_and_massbalance(t, y, params):
         elif T[i] > sublimation_point_CO2 and m[i] > 0:
             dmdt[i] = -(heat_env + heat_conv) / enthalpy_of_sublimation_CO2#kg/s
             F[i] = F[i-1] - dmdt[i] / density_CO2
-            dFdt[i] = -dmdt[i] / density_CO2
             heat_sub = dmdt[i] * (enthalpy_of_sublimation_CO2 + (T[i] - sublimation_point_CO2)*heat_capacity_CO2)
             dTdt[i] = (heat_env + heat_conv_no_CO2 + heat_sub) / (tank_volume*density_glass*heat_capacity_glass + m[i]*heat_capacity_CO2)  #K/s
         #post-desublimation
         else:
             dmdt[i] = 0
             F[i] = F[i-1] - dmdt[i] / density_CO2
-            dFdt[i] = -dmdt[i] / density_CO2
             dTdt[i] = (heat_env + heat_conv) / (tank_volume*density_glass*heat_capacity_glass + m[i]*heat_capacity_CO2)
             
     return np.concatenate([dTdt, dmdt])
@@ -232,7 +222,7 @@ y0 = np.concatenate([T0, m0])
 alpha_dummy = 20 # W/m^2K
 
 def model_T(params, t_eval, y0):
-    """Return temperatures (len(t_eval) × n_states) for least_squares."""
+   """Return temperatures (len(t_eval) × n_states) for least_squares."""
     sol = solve_ivp(
         lambda t, y: heat_and_massbalance(t, y, params),
         (t_eval[0], t_eval[-1]),
@@ -329,8 +319,8 @@ print("Fitted parameters alpha_conv, T_in, first_tank_volume=", params_fit)
 #T_sim = model_T(params_fit, t_span, y0)#.reshape(len(t_span), 2*number_of_tanks-1)[:,measured_indices]
 sol_sim = model_T(params_fit, t_span, y0)   # shape (nt, 3*N)
 n = number_of_tanks
-T_sim = sol_sim[:, :n].T
-m_sim = sol_sim[:, n:].T
+T_sim = sol_sim[:, :n]
+m_sim = sol_sim[:, n:]
 
 T_sim_meas = T_sim[:, measured_indices]   # measured_indices must be in 0..number_of_tanks-1
 m_sim_meas = m_sim[:, measured_indices]
@@ -376,6 +366,16 @@ plt.ylabel("Temperature [K]")
 plt.title("Sublimation model for 20 tanks")
 plt.legend(loc='upper right', bbox_to_anchor = (1.15, 1))
 
+F_sim = reconstruct_flowrate(t_span, m_sim_meas, density_CO2)
+
+#F_sim_meas = F_sim[:, measured_indices]
+
+plt.plot(t_span, F_sim, label="CO₂ flow per tank")
+plt.xlabel("Time [s]")
+plt.ylabel("CO₂ flowrate [Ln/s]")
+#plt.legend()
+plt.show()
+
 p = res.x
 r0 = residuals(p, t_span, T0_pchip, T_measured)
 p2 = p.copy(); p2[0] += 1e-3
@@ -383,15 +383,6 @@ r1 = residuals(p2, t_span, T0_pchip, T_measured)
 print("norm diff:", np.linalg.norm(r1-r0))
 
 
-F_sim = reconstruct_flowrate(t_span, m_sim_meas, density_CO2)
-
-F_sim_meas = F_sim[:, measured_indices]
-
-plt.plot(t_span, F_sim_meas, label="CO₂ flow per tank")
-plt.xlabel("Time [s]")
-plt.ylabel("CO₂ flowrate [Ln/s]")
-plt.legend()
-plt.show()
 #plt.text(600, 600, f'alpha = {params_fit[0]:.2f}', fontsize=22)
 
 # _______AAAA____       ____AAAA________
