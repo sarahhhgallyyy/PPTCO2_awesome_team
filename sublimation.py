@@ -146,7 +146,7 @@ def heat_and_massbalance(t, y, params):
             heat_desub = dmdt[i] * (enthalpy_of_sublimation_CO2 + (T[i] - sublimation_point_CO2)*heat_capacity_CO2)
             dTdt[i] = (heat_env + heat_conv_no_CO2 + heat_desub) / (tank_volume*density_glass*heat_capacity_glass*Factor_packing + m[i]*heat_capacity_CO2)
         #predesublimation
-        elif T[i] <= sublimation_point_CO2 and (F[i-3] <1e-3):
+        elif T[i] <= sublimation_point_CO2 and (F[i-3] < 1e-3):
             dmdt[i] = 0
             dTdt[i] = 0
             F[i] = F[i-1] - dmdt[i] / density_CO2

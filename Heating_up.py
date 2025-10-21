@@ -10,7 +10,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.integrate import odeint
 from scipy.optimize import least_squares
-#from Model1 import temperature_steady_state
 path = r"Data\free cooling (5 hrs).csv"
 
 # read correctly: EU numbers + parse first col as datetime
@@ -58,7 +57,6 @@ def heatbalance(T, t_span, params):
     #first tank
     first_tank_volume = 10 * 10**-3 # L; measured as the volume of the zone before the beads
     first_tank_surface = 0.005 #m^2
-    #dTdt[0] = tank_surface*alpha*(T_outside - T[0])/(first_tank_volume*density_glass*heat_capacity_glass)
     
     #remaining tanks
     for i in range(T.size):
@@ -72,7 +70,6 @@ time_increments = total_time
 t_span = np.linspace(0, total_time, time_increments) #seconds
 dt = total_time/(time_increments-1)
 
-#T_steady_state = np.linspace(-178, -140, number_of_tanks)
 T_steady_state = T_window.loc[start]["T210_PV":"T225_PV"]+273
 
 alpha_dummy = 20 # W/m^2K
@@ -81,14 +78,9 @@ def model_T_flat(params, t_eval, T0):
     """Return flattened temperatures (len(t_eval)*n_tanks) for least_squares."""
     # odeint expects args as tuple; make sure alpha is a scalar
     sol = odeint(heatbalance, T0, t_eval, args=(params,))
-    # sol shape = (len(t_eval), number_of_tanks)
     return sol.flatten()
 
 def residuals(params_array, t_eval, T0, T_meas_flat):
-    
-   # if alpha < 0:
-        # Give bigger residues when alpha is negative
-   #     return 1e6 * np.ones_like(T_meas_flat)
     sim_flat = model_T_flat(params_array, t_eval, T0)
     return sim_flat - T_meas_flat
 
@@ -148,5 +140,4 @@ for i in range(number_of_tanks-1):
 
 plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
 plt.tight_layout()
-#plt.text(600, 600, f'alpha = {params_fit[0]:.2f}', fontsize=22)
 alpha_fit, T_outside_fit, epsilon_fit = params_fit
